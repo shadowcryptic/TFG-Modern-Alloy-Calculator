@@ -39,7 +39,8 @@
     button:hover{ border-color: rgba(122,162,255,.75); }
     button:disabled{ opacity:.55; cursor:not-allowed; }
     .btn-ghost{ background:transparent; border-color:rgba(34,48,74,.9); }
-    .btn-bad{ border-color:rgba(255,107,107,.45); }
+    .btn-bright{ background:linear-gradient(180deg,#a15827,#14203a); border-color:rgba(255, 99, 9, 0.9); }
+    .btn-bad{ border-color:rgba(253, 52, 52, 0.45); }
     .small{ font-size:12px; color:var(--muted); }
     .pill{
       display:inline-flex; align-items:center; gap:8px;
@@ -66,9 +67,11 @@
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .split{ display:grid; grid-template-columns: 1.1fr .9fr; gap:14px; }
     @media (max-width:900px){ .split{ grid-template-columns:1fr; } select{ min-width: 100%; } input{ width: 100%; } }
+
+    /* Fluid rows */
     .fluid-row{
       display:grid;
-      grid-template-columns: 1.2fr .6fr .6fr 1.2fr .4fr;
+      grid-template-columns: .6fr .6fr .6fr .6fr .4fr; /* includes sizes col */
       gap:10px;
       align-items:end;
       padding:12px;
@@ -80,6 +83,32 @@
     .hint{ color:var(--muted); font-size:12px; margin-top:10px; }
     .kpi{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
     .wider input{ width: 100%; }
+
+    /* Hide/show allowed sizes column (hidden by default via JS adding .hide-sizes) */
+    body.hide-sizes .sizesCol { display:none; }
+    body.hide-sizes .fluid-row { grid-template-columns: .8fr .7fr .7fr .4fr; } /* no sizes col */
+
+    /* Checkbox styling */
+    .checkline{
+      display:flex; align-items:center; gap:10px;
+      padding:8px 10px;
+      border:1px solid rgba(34,48,74,.9);
+      border-radius:999px;
+      background:#0e1422;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .checkline input[type="checkbox"]{
+      width:auto;
+      margin:0;
+      accent-color: var(--accent);
+    }
+    .checkline label{
+      margin:0;
+      display:inline;
+      font-size:12px;
+      color:var(--muted);
+    }
   </style>
 </head>
 <body>
@@ -100,7 +129,9 @@
             <span class="pill">Plans use <b>your sizes</b> (min pours)</span>
           </div>
 
+
           <div class="row">
+
             <div>
               <label>Preset</label>
               <select id="presetSelect" style="min-width:220px;"></select>
@@ -112,6 +143,12 @@
 
         <div id="fluidsContainer" class="grid" style="margin-top:12px;"></div>
 
+          <div class="row">
+            <div class="checkline" title="Hide/show the per-fluid 'Allowed mb sizes' text boxes. Values are still used by the calculator.">
+              <input id="toggleSizes" type="checkbox" />
+              <label for="toggleSizes">Show allowed sizes</label>
+            </div>
+          </div>
         <div class="hint">
           Tips:
           <ul>
@@ -149,7 +186,7 @@
         </div>
 
         <div class="row" style="margin-top:12px;">
-          <button id="solveBtn">Calculate</button>
+          <button id="solveBtn" class="btn-bright">Calculate</button>
           <button id="resetBtn" class="btn-ghost">Reset</button>
         </div>
 
@@ -188,12 +225,12 @@
 
 <script>
   const FLUIDS = [
-    "Aluminium Silicate", "Bismuth", "Bismuth Bronze", "Black Bronze", "Black Steel", "Brass", "Cobalt", "Copper", "Gold", "Iron", "Lead", "Nickel", "Redstone", "Rose Gold", "Silver", "Steel", "Sterling Silver", "Tin", "Zinc"
+    "Copper","Zinc","Bismuth","Tin","Silver","Gold","Nickel","Lead","Iron","Steel",
+    "Bronze","Bismuth Bronze","Black Bronze","Brass","Rose Gold","Sterling Silver","Black Steel"
   ];
 
   const DEFAULT_SIZES = [16, 32, 144];
 
-  // Presets (static; no saving from user input)
   // Presets (static; no saving from user input)
   const PRESETS = {
     "Rose Gold": {
@@ -357,6 +394,8 @@
   const presetSelect = document.getElementById("presetSelect");
   const applyPresetBtn = document.getElementById("applyPresetBtn");
 
+  const toggleSizes = document.getElementById("toggleSizes");
+
   function parseSizes(text) {
     const raw = String(text || "").trim();
     if (raw.length === 0) return { sizes: DEFAULT_SIZES.slice(), usedDefault: true };
@@ -485,8 +524,9 @@
     maxWrap.appendChild(maxLabel);
     maxWrap.appendChild(maxInput);
 
+    // Allowed sizes column (can be hidden via CSS)
     const sizesWrap = document.createElement("div");
-    sizesWrap.className = "wider";
+    sizesWrap.className = "wider sizesCol";
     const sizesLabel = document.createElement("label");
     sizesLabel.textContent = "Allowed mb sizes (comma separated)";
     const sizesInput = document.createElement("input");
@@ -844,6 +884,11 @@
     updateStatus("Preset applied: " + name, "ok");
   }
 
+  // Hide/show sizes column (hidden by default)
+  function setShowSizes(show) {
+    document.body.classList.toggle("hide-sizes", !show);
+  }
+
   // Buttons
   addFluidBtn.onclick = () => {
     const rows = Array.from(container.querySelectorAll(".fluid-row"));
@@ -864,6 +909,10 @@
     if (presetSelect) presetSelect.value = "";
     if (applyPresetBtn) applyPresetBtn.disabled = true;
 
+    // keep sizes hidden on reset (but retain checkbox default)
+    if (toggleSizes) toggleSizes.checked = false;
+    setShowSizes(false);
+
     resultsBody.innerHTML = "<tr><td colspan='5' class='small' style='color:var(--muted);'>No results yet.</td></tr>";
     runtimeEl.textContent = "";
 
@@ -876,11 +925,17 @@
     renderSolutions(solutions);
   };
 
-  if (presetSelect) {
+    if (presetSelect) {
     presetSelect.addEventListener("change", () => {
-      applyPresetBtn.disabled = presetSelect.value === "";
+        const name = presetSelect.value;
+        if (!name) {
+        applyPresetBtn.disabled = true;
+        return;
+        }
+        applyPresetBtn.disabled = false; // optional now
+        applyPresetByName(name);         // <-- auto-apply
     });
-  }
+    }
 
   if (applyPresetBtn) {
     applyPresetBtn.addEventListener("click", () => {
@@ -890,15 +945,24 @@
     });
   }
 
+  if (toggleSizes) {
+    toggleSizes.addEventListener("change", () => {
+      setShowSizes(toggleSizes.checked);
+    });
+  }
+
   container.addEventListener("input", () => updateStatus());
   container.addEventListener("change", () => updateStatus());
 
-  // Initial rows + preset dropdown
+  // Initial rows + preset dropdown + sizes hidden by default
   container.appendChild(makeFluidRow(0));
   container.appendChild(makeFluidRow(1));
   normalizeRemoveButtons();
   updateStatus();
   populatePresetDropdown();
+
+  if (toggleSizes) toggleSizes.checked = false;
+  setShowSizes(false);
 </script>
 </body>
 </html>
