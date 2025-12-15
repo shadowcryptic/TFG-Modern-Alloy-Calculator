@@ -8,7 +8,7 @@
     :root { --bg:#0b0e14; --card:#121826; --muted:#7f8aa3; --text:#e8eefc; --line:#22304a; --accent:#7aa2ff; --bad:#ff6b6b; }
     *{ box-sizing:border-box; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
     body{ margin:0; background:linear-gradient(180deg,#080a10,#0b0e14); color:var(--text); }
-    .wrap{ max-width:1100px; margin:0 auto; padding:24px; }
+    .wrap{ max-width:1300px; margin:0 auto; padding:24px; }
     h1{ margin:0 0 10px; font-size:22px; letter-spacing:.2px; }
     p{ margin:6px 0 18px; color:var(--muted); line-height:1.35; }
     .grid{ display:grid; gap:14px; }
@@ -29,8 +29,8 @@
       padding:10px 12px;
       outline:none;
     }
-    input{ width:110px; }
-    select{ min-width:220px; }
+    input{ width:130px; }
+    select{ min-width:130px; }
     button{
       background:linear-gradient(180deg,#1b2a4a,#14203a);
       cursor:pointer;
@@ -39,7 +39,7 @@
     button:hover{ border-color: rgba(122,162,255,.75); }
     button:disabled{ opacity:.55; cursor:not-allowed; }
     .btn-ghost{ background:transparent; border-color:rgba(34,48,74,.9); }
-    .btn-bright{ background:linear-gradient(180deg,#a15827,#14203a); border-color:rgba(255, 99, 9, 0.9); }
+    .btn-bright{ background:transparent; border-color:rgba(255, 99, 9, 0.9); }
     .btn-bad{ border-color:rgba(253, 52, 52, 0.45); }
     .small{ font-size:12px; color:var(--muted); }
     .pill{
@@ -123,18 +123,18 @@
     <div class="split">
       <div class="card">
         <div class="row" style="justify-content:space-between;">
-          <div class="row">
+          <!-- <div class="row">
             <span class="pill">Output total = <b>144mb × ingots</b></span>
             <span class="pill">Per-fluid pours can be <b>any integers</b></span>
             <span class="pill">Plans use <b>your sizes</b> (min pours)</span>
-          </div>
+          </div> -->
 
 
           <div class="row">
 
             <div>
               <label>Preset</label>
-              <select id="presetSelect" style="min-width:220px;"></select>
+              <select id="presetSelect" style="min-width:220px;border-color:rgba(255, 99, 9, 0.9); "></select>
             </div>
             <button id="applyPresetBtn" class="btn-ghost" disabled>Apply preset</button>
             <button id="addFluidBtn">+ Add fluid</button>
@@ -143,20 +143,20 @@
 
         <div id="fluidsContainer" class="grid" style="margin-top:12px;"></div>
 
-          <div class="row">
-            <div class="checkline" title="Hide/show the per-fluid 'Allowed mb sizes' text boxes. Values are still used by the calculator.">
-              <input id="toggleSizes" type="checkbox" />
-              <label for="toggleSizes">Show allowed sizes</label>
-            </div>
-          </div>
-        <div class="hint">
+        <div class="row">
+        <div class="checkline" title="Hide/show the per-fluid 'Allowed mb sizes' text boxes. Values are still used by the calculator.">
+            <input id="toggleSizes" type="checkbox" />
+            <label for="toggleSizes">Show allowed sizes</label>
+        </div>
+        </div>
+        <!-- <div class="hint">
           Tips:
           <ul>
             <li>Use ranges like <span class="mono">15–20</span> for electrum-style recipes.</li>
             <li>If you want an exact percentage, set min=max (e.g. <span class="mono">18.75</span> to <span class="mono">18.75</span>).</li>
             <li>Leave “Allowed mb sizes” blank to use the default <span class="mono">16,32,144</span>.</li>
           </ul>
-        </div>
+        </div> -->
       </div>
 
       <div class="card">
