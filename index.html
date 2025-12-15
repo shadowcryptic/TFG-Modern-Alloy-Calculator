@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Alloy / Fluid Ratio Calculator</title>
+  <style>
+    :root { --bg:#0b0e14; --card:#121826; --muted:#7f8aa3; --text:#e8eefc; --line:#22304a; --accent:#7aa2ff; --bad:#ff6b6b; }
+    *{ box-sizing:border-box; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    body{ margin:0; background:linear-gradient(180deg,#080a10,#0b0e14); color:var(--text); }
+    .wrap{ max-width:1100px; margin:0 auto; padding:24px; }
+    h1{ margin:0 0 10px; font-size:22px; letter-spacing:.2px; }
+    p{ margin:6px 0 18px; color:var(--muted); line-height:1.35; }
+    .grid{ display:grid; gap:14px; }
+    .card{
+      background:rgba(18,24,38,.92);
+      border:1px solid rgba(34,48,74,.9);
+      border-radius:16px;
+      padding:16px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    label{ font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+    select,input,button{
+      border-radius:12px;
+      border:1px solid rgba(34,48,74,.9);
+      background:#0e1422;
+      color:var(--text);
+      padding:10px 12px;
+      outline:none;
+    }
+    input{ width:110px; }
+    select{ min-width:220px; }
+    button{
+      background:linear-gradient(180deg,#1b2a4a,#14203a);
+      cursor:pointer;
+      border:1px solid rgba(122,162,255,.35);
+    }
+    button:hover{ border-color: rgba(122,162,255,.75); }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+    .btn-ghost{ background:transparent; border-color:rgba(34,48,74,.9); }
+    .btn-bad{ border-color:rgba(255,107,107,.45); }
+    .small{ font-size:12px; color:var(--muted); }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px;
+      border:1px solid rgba(34,48,74,.9);
+      border-radius:999px;
+      color:var(--muted);
+      background:#0e1422;
+      font-size:12px;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      overflow:hidden;
+      border-radius:14px;
+      border:1px solid rgba(34,48,74,.9);
+    }
+    th,td{ padding:10px 12px; text-align:left; border-bottom:1px solid rgba(34,48,74,.6); }
+    th{ font-size:12px; color:var(--muted); background:#0e1422; }
+    tr:last-child td{ border-bottom:none; }
+    .ok{ color:#8bffb0; }
+    .warn{ color:#ffd37a; }
+    .bad{ color:var(--bad); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .split{ display:grid; grid-template-columns: 1.1fr .9fr; gap:14px; }
+    @media (max-width:900px){ .split{ grid-template-columns:1fr; } select{ min-width: 100%; } input{ width: 100%; } }
+    .fluid-row{
+      display:grid;
+      grid-template-columns: 1.2fr .6fr .6fr 1.2fr .4fr;
+      gap:10px;
+      align-items:end;
+      padding:12px;
+      border:1px solid rgba(34,48,74,.75);
+      border-radius:14px;
+      background:rgba(14,20,34,.75);
+    }
+    .fluid-row .remove{ justify-self:end; }
+    .hint{ color:var(--muted); font-size:12px; margin-top:10px; }
+    .kpi{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    .wider input{ width: 100%; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Alloy / Fluid Ratio Calculator</h1>
+    <p>
+      Pick <b>2–4 fluids</b>, set each fluid’s <b>allowed percentage range</b>, and (optionally) set
+      <b>per-fluid allowed mb pour sizes</b> (e.g. <span class="mono">30,129</span>).
+      The solver finds input amounts that produce an exact number of <b>ingots (144mb each)</b> with <b>zero remainder</b>.
+    </p>
+
+    <div class="split">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;">
+          <div class="row">
+            <span class="pill">Output total = <b>144mb × ingots</b></span>
+            <span class="pill">Per-fluid pours can be <b>any integers</b></span>
+            <span class="pill">Plans use <b>your sizes</b> (min pours)</span>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Preset</label>
+              <select id="presetSelect" style="min-width:220px;"></select>
+            </div>
+            <button id="applyPresetBtn" class="btn-ghost" disabled>Apply preset</button>
+            <button id="addFluidBtn">+ Add fluid</button>
+          </div>
+        </div>
+
+        <div id="fluidsContainer" class="grid" style="margin-top:12px;"></div>
+
+        <div class="hint">
+          Tips:
+          <ul>
+            <li>Use ranges like <span class="mono">15–20</span> for electrum-style recipes.</li>
+            <li>If you want an exact percentage, set min=max (e.g. <span class="mono">18.75</span> to <span class="mono">18.75</span>).</li>
+            <li>Leave “Allowed mb sizes” blank to use the default <span class="mono">16,32,144</span>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <label>Search ingots</label>
+            <div class="row">
+              <input id="minIngots" type="number" min="1" max="64" value="1" />
+              <span class="small">to</span>
+              <input id="maxIngots" type="number" min="1" max="64" value="8" />
+            </div>
+          </div>
+
+          <div>
+            <label>Max solutions to show</label>
+            <input id="maxSolutions" type="number" min="1" max="50" value="10" />
+          </div>
+
+          <div>
+            <label>Preference</label>
+            <select id="preference">
+              <option value="leastIngots">Least ingots (smallest batch)</option>
+              <option value="mostIngots">Most ingots (largest batch)</option>
+              <option value="fewestPours">Fewest pours (using per-fluid sizes)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px;">
+          <button id="solveBtn">Calculate</button>
+          <button id="resetBtn" class="btn-ghost">Reset</button>
+        </div>
+
+        <div id="status" class="kpi"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="row" style="justify-content:space-between; align-items:flex-end;">
+        <div>
+          <div class="small">Results</div>
+          <div class="small">Solutions match your % ranges and produce <b>exact ingots</b> (no leftover output).</div>
+        </div>
+        <div class="small mono" id="runtime"></div>
+      </div>
+
+      <div style="margin-top:12px; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Ingots</th>
+              <th>Total (mb)</th>
+              <th>Composition (mb + %)</th>
+              <th>Pour plan (uses that fluid’s sizes)</th>
+              <th>Pour count</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody">
+            <tr><td colspan="5" class="small" style="color:var(--muted);">No results yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  const FLUIDS = [
+    "Aluminium Silicate", "Bismuth", "Bismuth Bronze", "Black Bronze", "Black Steel", "Brass", "Cobalt", "Copper", "Gold", "Iron", "Lead", "Nickel", "Redstone", "Rose Gold", "Silver", "Steel", "Sterling Silver", "Tin", "Zinc"
+  ];
+
+  const DEFAULT_SIZES = [16, 32, 144];
+
+  // Presets (static; no saving from user input)
+  // Presets (static; no saving from user input)
+  const PRESETS = {
+    "Rose Gold": {
+      fluids: [
+        { fluid: "Copper", minPct: 15, maxPct: 30, sizes: [16, 144] },
+        { fluid: "Gold", minPct: 70, maxPct: 85, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Brass": {
+      fluids: [
+        { fluid: "Zinc", minPct: 20, maxPct: 30, sizes: [16, 144] },
+        { fluid: "Copper", minPct: 70, maxPct: 80, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Red Steel": {
+      fluids: [
+        { fluid: "Black Steel", minPct: 50, maxPct: 55, sizes: [16, 144] },
+        { fluid: "Steel", minPct: 20, maxPct: 25, sizes: [16, 144] },
+        { fluid: "Brass", minPct: 10, maxPct: 15, sizes: [16, 144] },
+        { fluid: "Rose Gold", minPct: 10, maxPct: 15, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Black Bronze": {
+      fluids: [
+        { fluid: "Copper", minPct: 50, maxPct: 70, sizes: [16, 144] },
+        { fluid: "Gold", minPct: 10, maxPct: 25, sizes: [16, 144] },
+        { fluid: "Silver", minPct: 10, maxPct: 25, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Weak Steel": {
+      fluids: [
+        { fluid: "Steel", minPct: 50, maxPct: 70, sizes: [16, 144] },
+        { fluid: "Nickel", minPct: 15, maxPct: 25, sizes: [16, 144] },
+        { fluid: "Black Bronze", minPct: 15, maxPct: 25, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Tin Alloy": {
+      fluids: [
+        { fluid: "Tin", minPct: 45, maxPct: 55, sizes: [16, 144] },
+        { fluid: "Iron", minPct: 45, maxPct: 55, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Blue Steel": {
+      fluids: [
+        { fluid: "Sterling Silver", minPct: 10, maxPct: 15, sizes: [16, 144] },
+        { fluid: "Black Steel", minPct: 50, maxPct: 55, sizes: [16, 144] },
+        { fluid: "Steel", minPct: 20, maxPct: 25, sizes: [16, 144] },
+        { fluid: "Bismuth Bronze", minPct: 10, maxPct: 15, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Cobalt Brass": {
+      fluids: [
+        { fluid: "Aluminium Silicate", minPct: 8, maxPct: 14, sizes: [16, 144] },
+        { fluid: "Brass", minPct: 74, maxPct: 81, sizes: [16, 144] },
+        { fluid: "Cobalt", minPct: 8, maxPct: 14, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Invar": {
+      fluids: [
+        { fluid: "Nickel", minPct: 60, maxPct: 70, sizes: [16, 144] },
+        { fluid: "Iron", minPct: 30, maxPct: 40, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Red Alloy": {
+      fluids: [
+        { fluid: "Copper", minPct: 15, maxPct: 25, sizes: [16, 144] },
+        { fluid: "Redstone", minPct: 75, maxPct: 85, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Sterling Silver": {
+      fluids: [
+        { fluid: "Copper", minPct: 20, maxPct: 40, sizes: [16, 144] },
+        { fluid: "Silver", minPct: 60, maxPct: 80, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Bronze": {
+      fluids: [
+        { fluid: "Copper", minPct: 70, maxPct: 80, sizes: [16, 144] },
+        { fluid: "Tin", minPct: 20, maxPct: 30, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Potin": {
+      fluids: [
+        { fluid: "Lead", minPct: 8, maxPct: 14, sizes: [16, 144] },
+        { fluid: "Copper", minPct: 63, maxPct: 69, sizes: [16, 144] },
+        { fluid: "Tin", minPct: 19, maxPct: 25, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    },
+
+    "Bismuth Bronze": {
+      fluids: [
+        { fluid: "Zinc", minPct: 20, maxPct: 30, sizes: [16, 144] },
+        { fluid: "Bismuth", minPct: 10, maxPct: 20, sizes: [16, 144] },
+        { fluid: "Copper", minPct: 50, maxPct: 65, sizes: [16, 144] }
+      ],
+      minIngots: 1,
+      maxIngots: 8,
+      preference: "leastIngots"
+    }
+  };
+
+  const container = document.getElementById("fluidsContainer");
+  const addFluidBtn = document.getElementById("addFluidBtn");
+  const solveBtn = document.getElementById("solveBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const resultsBody = document.getElementById("resultsBody");
+  const statusEl = document.getElementById("status");
+  const runtimeEl = document.getElementById("runtime");
+
+  const presetSelect = document.getElementById("presetSelect");
+  const applyPresetBtn = document.getElementById("applyPresetBtn");
+
+  function parseSizes(text) {
+    const raw = String(text || "").trim();
+    if (raw.length === 0) return { sizes: DEFAULT_SIZES.slice(), usedDefault: true };
+
+    const parts = raw.split(",").map(s => s.trim()).filter(s => s.length > 0);
+    const nums = [];
+    for (const p of parts) {
+      const v = Number(p);
+      if (!Number.isInteger(v) || v <= 0) return { error: "Allowed mb sizes must be positive integers (comma separated)." };
+      nums.push(v);
+    }
+    const uniq = Array.from(new Set(nums));
+    uniq.sort((a,b)=>a-b);
+    return { sizes: uniq, usedDefault: false };
+  }
+
+  function gcd(a, b) {
+    let x = Math.abs(a), y = Math.abs(b);
+    while (y !== 0) {
+      const t = x % y;
+      x = y;
+      y = t;
+    }
+    return x;
+  }
+
+  function gcdArray(arr) {
+    if (arr.length === 0) return 1;
+    let g = arr[0];
+    for (let i = 1; i < arr.length; i++) g = gcd(g, arr[i]);
+    return g;
+  }
+
+  // Unbounded coin DP up to maxTotalMb. Also computes min pours + reconstruction.
+  function buildCoinDP(sizes, maxTotalMb) {
+    const canMake = new Array(maxTotalMb + 1).fill(false);
+    const minPours = new Array(maxTotalMb + 1).fill(Number.POSITIVE_INFINITY);
+    const prev = new Array(maxTotalMb + 1).fill(-1);
+
+    canMake[0] = true;
+    minPours[0] = 0;
+
+    for (let x = 1; x <= maxTotalMb; x++) {
+      for (const c of sizes) {
+        if (x - c >= 0 && canMake[x - c]) {
+          canMake[x] = true;
+          const candidate = minPours[x - c] + 1;
+          if (candidate < minPours[x]) {
+            minPours[x] = candidate;
+            prev[x] = c;
+          }
+        }
+      }
+    }
+
+    const feasible = [];
+    for (let x = 0; x <= maxTotalMb; x++) if (canMake[x]) feasible.push(x);
+
+    return { canMake, minPours, prev, feasible };
+  }
+
+  function reconstructPours(prev, amountMb) {
+    const counts = new Map();
+    let x = amountMb;
+    while (x > 0) {
+      const c = prev[x];
+      if (c <= 0) break;
+      counts.set(c, (counts.get(c) || 0) + 1);
+      x -= c;
+    }
+    const keys = Array.from(counts.keys()).sort((a,b)=>b-a);
+    return keys.map(k => ({ size: k, count: counts.get(k) }));
+  }
+
+  function poursToString(pours) {
+    if (!pours || pours.length === 0) return "-";
+    return pours.map(p => p.count + "×" + p.size).join(" + ");
+  }
+
+  function round2(x) {
+    return Math.round(x * 100) / 100;
+  }
+
+  function makeFluidRow(idx) {
+    const row = document.createElement("div");
+    row.className = "fluid-row";
+    row.dataset.idx = String(idx);
+
+    const fluidWrap = document.createElement("div");
+    const fluidLabel = document.createElement("label");
+    fluidLabel.textContent = "Fluid";
+    const select = document.createElement("select");
+    select.className = "fluidSelect";
+    FLUIDS.forEach((f) => {
+      const opt = document.createElement("option");
+      opt.value = f;
+      opt.textContent = f;
+      select.appendChild(opt);
+    });
+    fluidWrap.appendChild(fluidLabel);
+    fluidWrap.appendChild(select);
+
+    const minWrap = document.createElement("div");
+    const minLabel = document.createElement("label");
+    minLabel.textContent = "Min %";
+    const minInput = document.createElement("input");
+    minInput.type = "number";
+    minInput.step = "0.01";
+    minInput.min = "0";
+    minInput.max = "100";
+    minInput.value = idx === 0 ? "80" : (idx === 1 ? "15" : "0");
+    minInput.className = "minPct";
+    minWrap.appendChild(minLabel);
+    minWrap.appendChild(minInput);
+
+    const maxWrap = document.createElement("div");
+    const maxLabel = document.createElement("label");
+    maxLabel.textContent = "Max %";
+    const maxInput = document.createElement("input");
+    maxInput.type = "number";
+    maxInput.step = "0.01";
+    maxInput.min = "0";
+    maxInput.max = "100";
+    maxInput.value = idx === 0 ? "85" : (idx === 1 ? "20" : "100");
+    maxInput.className = "maxPct";
+    maxWrap.appendChild(maxLabel);
+    maxWrap.appendChild(maxInput);
+
+    const sizesWrap = document.createElement("div");
+    sizesWrap.className = "wider";
+    const sizesLabel = document.createElement("label");
+    sizesLabel.textContent = "Allowed mb sizes (comma separated)";
+    const sizesInput = document.createElement("input");
+    sizesInput.type = "text";
+    sizesInput.placeholder = "Default: 16,32,144   e.g. 30,129";
+    sizesInput.className = "sizesMb";
+    sizesWrap.appendChild(sizesLabel);
+    sizesWrap.appendChild(sizesInput);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = "Remove";
+    removeBtn.className = "remove btn-ghost btn-bad";
+    removeBtn.onclick = () => {
+      row.remove();
+      normalizeRemoveButtons();
+      updateStatus();
+    };
+
+    row.appendChild(fluidWrap);
+    row.appendChild(minWrap);
+    row.appendChild(maxWrap);
+    row.appendChild(sizesWrap);
+    row.appendChild(removeBtn);
+
+    return row;
+  }
+
+  function normalizeRemoveButtons() {
+    const rows = Array.from(container.querySelectorAll(".fluid-row"));
+    rows.forEach((r) => {
+      r.querySelector(".remove").disabled = rows.length <= 2;
+      r.querySelector(".remove").title = rows.length <= 2 ? "Need at least 2 fluids." : "";
+    });
+    addFluidBtn.disabled = rows.length >= 4;
+    addFluidBtn.title = rows.length >= 4 ? "Max 4 fluids." : "";
+  }
+
+  function updateStatus(msg, kind) {
+    const rows = Array.from(container.querySelectorAll(".fluid-row"));
+    const pills = [];
+
+    function pill(text) {
+      const span = document.createElement("span");
+      span.className = "pill";
+      span.innerHTML = text;
+      return span;
+    }
+
+    pills.push(pill("Fluids: <b>" + rows.length + "</b>"));
+
+    let ok = true;
+    let sizesOk = true;
+    let usedDefaults = 0;
+
+    for (const r of rows) {
+      const mn = Number(r.querySelector(".minPct").value);
+      const mx = Number(r.querySelector(".maxPct").value);
+      if (!(isFinite(mn) && isFinite(mx) && mn >= 0 && mx <= 100 && mn <= mx)) ok = false;
+
+      const parsed = parseSizes(r.querySelector(".sizesMb").value);
+      if (parsed.error) sizesOk = false;
+      else if (parsed.usedDefault) usedDefaults += 1;
+    }
+
+    pills.push(pill(ok ? "<span class='ok'>Ranges look valid</span>" : "<span class='bad'>Fix min/max ranges</span>"));
+    pills.push(pill(sizesOk ? "<span class='ok'>Sizes parse OK</span>" : "<span class='bad'>Fix allowed mb sizes</span>"));
+    if (usedDefaults > 0) pills.push(pill("Defaults used: <b>" + usedDefaults + "</b>"));
+
+    if (msg) {
+      const cls = kind === "bad" ? "bad" : (kind === "warn" ? "warn" : "ok");
+      pills.push(pill("<span class='" + cls + "'>" + msg + "</span>"));
+    }
+
+    statusEl.innerHTML = "";
+    for (const p of pills) statusEl.appendChild(p);
+  }
+
+  function getInputs() {
+    const rows = Array.from(container.querySelectorAll(".fluid-row"));
+    const inputs = rows.map(r => {
+      const parsed = parseSizes(r.querySelector(".sizesMb").value);
+      return {
+        fluid: r.querySelector(".fluidSelect").value,
+        minPct: Number(r.querySelector(".minPct").value),
+        maxPct: Number(r.querySelector(".maxPct").value),
+        sizes: parsed.sizes || null,
+        sizesUsedDefault: !!parsed.usedDefault,
+        sizesError: parsed.error || null
+      };
+    });
+
+    if (inputs.length < 2 || inputs.length > 4) return { error: "Need 2–4 fluids." };
+
+    for (const it of inputs) {
+      if (!isFinite(it.minPct) || !isFinite(it.maxPct) || it.minPct < 0 || it.maxPct > 100 || it.minPct > it.maxPct) {
+        return { error: "One or more min/max % values are invalid." };
+      }
+      if (it.sizesError) return { error: it.sizesError };
+      if (!it.sizes || it.sizes.length === 0) return { error: "Allowed mb sizes cannot be empty." };
+    }
+
+    const set = new Set(inputs.map(i => i.fluid));
+    const hasDup = set.size !== inputs.length;
+
+    const minIng = Number(document.getElementById("minIngots").value);
+    const maxIng = Number(document.getElementById("maxIngots").value);
+    const maxSol = Number(document.getElementById("maxSolutions").value);
+    const pref = document.getElementById("preference").value;
+
+    if (!isFinite(minIng) || !isFinite(maxIng) || minIng < 1 || maxIng < 1 || minIng > maxIng) {
+      return { error: "Invalid ingot range." };
+    }
+    if (!isFinite(maxSol) || maxSol < 1) return { error: "Invalid max solutions." };
+
+    return { inputs, minIng, maxIng, maxSol, pref, hasDup };
+  }
+
+  function solve() {
+    const t0 = performance.now();
+    const cfg = getInputs();
+    if (cfg.error) {
+      updateStatus(cfg.error, "bad");
+      return [];
+    }
+    if (cfg.hasDup) updateStatus("Note: duplicate fluids selected.", "warn");
+    else updateStatus("Searching…", "ok");
+
+    const { inputs, minIng, maxIng, maxSol, pref } = cfg;
+    const n = inputs.length;
+
+    const maxTotalMb = 144 * maxIng;
+    const dpByFluid = inputs.map(it => {
+      const g = gcdArray(it.sizes);
+      const dp = buildCoinDP(it.sizes, maxTotalMb);
+      return { sizes: it.sizes, gcd: g, dp };
+    });
+
+    const solutions = [];
+
+    function searchForIngots(ingots) {
+      const totalMb = 144 * ingots;
+
+      const lo = inputs.map(it => Math.ceil((it.minPct / 100) * totalMb - 1e-12));
+      const hi = inputs.map(it => Math.floor((it.maxPct / 100) * totalMb + 1e-12));
+
+      const feasibleLists = [];
+      const minFeas = new Array(n).fill(0);
+      const maxFeas = new Array(n).fill(0);
+
+      for (let i = 0; i < n; i++) {
+        const { dp } = dpByFluid[i];
+        const list = [];
+        for (const v of dp.feasible) {
+          if (v > totalMb) break;
+          if (v >= lo[i] && v <= hi[i]) list.push(v);
+        }
+        if (list.length === 0) return;
+        feasibleLists.push(list);
+        minFeas[i] = list[0];
+        maxFeas[i] = list[list.length - 1];
+      }
+
+      const chosen = new Array(n).fill(0);
+
+      function rec(i, remaining) {
+        if (solutions.length >= maxSol) return;
+
+        if (i === n - 1) {
+          const v = remaining;
+          if (v < lo[i] || v > hi[i]) return;
+          if (!dpByFluid[i].dp.canMake[v]) return;
+          chosen[i] = v;
+
+          const pct = chosen.map(x => (x / totalMb) * 100);
+
+          const pourStrings = [];
+          let pourTotal = 0;
+
+          for (let k = 0; k < n; k++) {
+            const dp = dpByFluid[k].dp;
+            const pours = reconstructPours(dp.prev, chosen[k]);
+            pourStrings.push(poursToString(pours));
+
+            if (dp.minPours[chosen[k]] !== Number.POSITIVE_INFINITY) {
+              pourTotal += dp.minPours[chosen[k]];
+            } else {
+              pourTotal += 999999;
+            }
+          }
+
+          solutions.push({
+            ingots,
+            totalMb,
+            mb: chosen.slice(),
+            pct,
+            pourStrings,
+            pourTotal
+          });
+          return;
+        }
+
+        let minRest = 0, maxRest = 0;
+        for (let k = i + 1; k < n; k++) { minRest += minFeas[k]; maxRest += maxFeas[k]; }
+
+        const list = feasibleLists[i];
+        for (let idx = 0; idx < list.length; idx++) {
+          const v = list[idx];
+          if (v > remaining) break;
+
+          const remAfter = remaining - v;
+          if (remAfter < minRest || remAfter > maxRest) continue;
+
+          chosen[i] = v;
+          rec(i + 1, remAfter);
+          if (solutions.length >= maxSol) return;
+        }
+      }
+
+      rec(0, totalMb);
+    }
+
+    const ingotsList = [];
+    for (let k = minIng; k <= maxIng; k++) ingotsList.push(k);
+    if (pref === "mostIngots") ingotsList.reverse();
+
+    for (const ing of ingotsList) {
+      if (solutions.length >= maxSol) break;
+      searchForIngots(ing);
+    }
+
+    solutions.sort((A,B) => {
+      if (pref === "fewestPours") {
+        if (A.pourTotal !== B.pourTotal) return A.pourTotal - B.pourTotal;
+        return A.ingots - B.ingots;
+      }
+      if (pref === "mostIngots") {
+        if (A.ingots !== B.ingots) return B.ingots - A.ingots;
+        return A.pourTotal - B.pourTotal;
+      }
+      if (A.ingots !== B.ingots) return A.ingots - B.ingots;
+      return A.pourTotal - B.pourTotal;
+    });
+
+    const t1 = performance.now();
+    runtimeEl.textContent = "Runtime: " + round2(t1 - t0) + " ms";
+    if (solutions.length === 0) updateStatus("No solutions found for that ingot range.", "bad");
+    else updateStatus("Found " + solutions.length + " solution(s).", "ok");
+
+    return solutions;
+  }
+
+  function renderSolutions(solutions) {
+    if (!solutions || solutions.length === 0) {
+      resultsBody.innerHTML = "<tr><td colspan='5' class='small' style='color:var(--muted);'>No solutions.</td></tr>";
+      return;
+    }
+
+    const inputs = Array.from(container.querySelectorAll(".fluid-row")).map(r => ({
+      fluid: r.querySelector(".fluidSelect").value
+    }));
+
+    resultsBody.innerHTML = "";
+
+    for (const sol of solutions) {
+      const tr = document.createElement("tr");
+
+      const tdIng = document.createElement("td");
+      tdIng.textContent = String(sol.ingots);
+
+      const tdTot = document.createElement("td");
+      tdTot.innerHTML = "<span class='mono'>" + sol.totalMb + " mb</span>";
+
+      const tdComp = document.createElement("td");
+      const lines = [];
+      for (let i = 0; i < inputs.length; i++) {
+        lines.push(
+          "<div><b>" + inputs[i].fluid + "</b>: <span class='mono'>" + sol.mb[i] + "mb</span> (" +
+          "<span class='mono'>" + round2(sol.pct[i]).toFixed(2) + "%</span>)</div>"
+        );
+      }
+      tdComp.innerHTML = lines.join("");
+
+      const tdPours = document.createElement("td");
+      tdPours.innerHTML = inputs.map((it, i) =>
+        "<div><b>" + it.fluid + "</b>: <span class='mono'>" + sol.pourStrings[i] + "</span></div>"
+      ).join("");
+
+      const tdCnt = document.createElement("td");
+      tdCnt.innerHTML = "<span class='mono'>" + sol.pourTotal + "</span>";
+
+      tr.appendChild(tdIng);
+      tr.appendChild(tdTot);
+      tr.appendChild(tdComp);
+      tr.appendChild(tdPours);
+      tr.appendChild(tdCnt);
+
+      resultsBody.appendChild(tr);
+    }
+  }
+
+  // Presets UI wiring
+  function populatePresetDropdown() {
+    if (!presetSelect) return;
+
+    presetSelect.innerHTML = "";
+
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "None";
+    presetSelect.appendChild(none);
+
+    Object.keys(PRESETS).sort().forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      presetSelect.appendChild(opt);
+    });
+
+    applyPresetBtn.disabled = true;
+  }
+
+  function clearFluidRows() {
+    container.innerHTML = "";
+  }
+
+  function applyPresetByName(name) {
+    const preset = PRESETS[name];
+    if (!preset) {
+      updateStatus("Unknown preset: " + name, "bad");
+      return;
+    }
+
+    clearFluidRows();
+
+    preset.fluids.forEach((f, idx) => {
+      const row = makeFluidRow(idx);
+      container.appendChild(row);
+
+      row.querySelector(".fluidSelect").value = f.fluid;
+      row.querySelector(".minPct").value = String(f.minPct);
+      row.querySelector(".maxPct").value = String(f.maxPct);
+
+      const sizesText = (f.sizes && f.sizes.length > 0) ? f.sizes.join(",") : "";
+      row.querySelector(".sizesMb").value = sizesText;
+    });
+
+    if (typeof preset.minIngots === "number") document.getElementById("minIngots").value = String(preset.minIngots);
+    if (typeof preset.maxIngots === "number") document.getElementById("maxIngots").value = String(preset.maxIngots);
+    if (preset.preference) document.getElementById("preference").value = preset.preference;
+
+    resultsBody.innerHTML = "<tr><td colspan='5' class='small' style='color:var(--muted);'>Preset loaded. Click Calculate to run.</td></tr>";
+    runtimeEl.textContent = "";
+
+    normalizeRemoveButtons();
+    updateStatus("Preset applied: " + name, "ok");
+  }
+
+  // Buttons
+  addFluidBtn.onclick = () => {
+    const rows = Array.from(container.querySelectorAll(".fluid-row"));
+    if (rows.length >= 4) return;
+    container.appendChild(makeFluidRow(rows.length));
+    normalizeRemoveButtons();
+    updateStatus();
+  };
+
+  resetBtn.onclick = () => {
+    clearFluidRows();
+    container.appendChild(makeFluidRow(0));
+    container.appendChild(makeFluidRow(1));
+    document.getElementById("minIngots").value = "1";
+    document.getElementById("maxIngots").value = "8";
+    document.getElementById("maxSolutions").value = "10";
+    document.getElementById("preference").value = "leastIngots";
+    if (presetSelect) presetSelect.value = "";
+    if (applyPresetBtn) applyPresetBtn.disabled = true;
+
+    resultsBody.innerHTML = "<tr><td colspan='5' class='small' style='color:var(--muted);'>No results yet.</td></tr>";
+    runtimeEl.textContent = "";
+
+    normalizeRemoveButtons();
+    updateStatus("Reset.", "ok");
+  };
+
+  solveBtn.onclick = () => {
+    const solutions = solve();
+    renderSolutions(solutions);
+  };
+
+  if (presetSelect) {
+    presetSelect.addEventListener("change", () => {
+      applyPresetBtn.disabled = presetSelect.value === "";
+    });
+  }
+
+  if (applyPresetBtn) {
+    applyPresetBtn.addEventListener("click", () => {
+      const name = presetSelect.value;
+      if (!name) return;
+      applyPresetByName(name);
+    });
+  }
+
+  container.addEventListener("input", () => updateStatus());
+  container.addEventListener("change", () => updateStatus());
+
+  // Initial rows + preset dropdown
+  container.appendChild(makeFluidRow(0));
+  container.appendChild(makeFluidRow(1));
+  normalizeRemoveButtons();
+  updateStatus();
+  populatePresetDropdown();
+</script>
+</body>
+</html>
